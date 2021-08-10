@@ -1,0 +1,4 @@
+(tests
+ (names skiplist_test)
+ (package skiplist)
+ (libraries alcotest skiplist))
