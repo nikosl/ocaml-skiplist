@@ -1,0 +1,6 @@
+(tests
+ (names skiplist_fuzz)
+ (package skiplist)
+ (libraries alcotest qcheck-core qcheck-alcotest qcstm skiplist)
+ (preprocess
+  (pps ppx_deriving.show)))

@@ -1,0 +1,3 @@
+(executable
+ (name prof)
+ (libraries memtrace fixtures skiplist))
