@@ -118,7 +118,7 @@ end
 module type S = sig
   type key
 
-  type 'a t
+  type !'a t
 
   val create : ?max_level:int -> unit -> 'a t
 
@@ -143,9 +143,9 @@ module type S = sig
 
   val add : key:key -> value:'a -> 'a t -> unit
 
-  val remove : 'a t -> key -> unit
+  val to_string : 'a t -> string
 
-  val mem : 'a t -> key -> bool
+  val pp : Format.formatter -> 'a t -> unit [@@ocaml.toplevel_printer]
 
   val iter : f:(key -> 'a -> unit) -> 'a t -> unit
 
