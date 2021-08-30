@@ -8,7 +8,7 @@
 (** A SkipList behaves as a sorted list with, typically, O(log(n)) cost for
     insertion, look-up and removal *)
 
-type ('k, 'v) t
+type (!'k, !'v) t
 (** The type of the [skiplist]*)
 
 (** Input signature of the functor {!Make}. *)
@@ -31,7 +31,7 @@ module type S = sig
   type key
   (** The type of the skiplist elements. *)
 
-  type 'a t
+  type !'a t
   (** The type of skiplists. *)
 
   val create : ?max_level:int -> unit -> 'a t
@@ -62,9 +62,9 @@ module type S = sig
 
   val add : key:key -> value:'a -> 'a t -> unit
 
-  val remove : 'a t -> key -> unit
+  val mem : key -> 'a t -> bool
 
-  val mem : 'a t -> key -> bool
+  val iter : (key -> 'a -> unit) -> 'a t -> unit
 
   val iter : f:(key -> 'a -> unit) -> 'a t -> unit
 
