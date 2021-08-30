@@ -55,6 +55,53 @@ let test_len_remove_all () =
   let expected = 0 in
   check int "empty" expected actual
 
+let test_len_empty () =
+  let module IntSList = M.Make (Int) in
+  let sl = IntSList.create () in
+  let actual = IntSList.length sl in
+  let expected = 0 in
+  check int "empty" actual expected
+
+let test_len_insert () =
+  let module IntSList = M.Make (Int) in
+  let sl = IntSList.create () in
+  let n = 13 in
+  IntSList.add sl ~key:(n + 2) ~value:n;
+  IntSList.add sl ~key:n ~value:n;
+  IntSList.add sl ~key:(n + 1) ~value:n;
+  IntSList.remove (n + 2) sl;
+  IntSList.add sl ~key:(n + 2) ~value:n;
+  let actual = IntSList.length sl in
+  let expected = 3 in
+  check int "three" actual expected
+
+let test_len_remove () =
+  let module IntSList = M.Make (Int) in
+  let sl = IntSList.create () in
+  let n = 13 in
+  IntSList.add sl ~key:(n + 2) ~value:n;
+  IntSList.add sl ~key:n ~value:n;
+  IntSList.add sl ~key:(n + 1) ~value:n;
+  IntSList.remove (n + 2) sl;
+  IntSList.remove n sl;
+  let actual = IntSList.length sl in
+  let expected = 1 in
+  check int "one" actual expected
+
+let test_len_remove_all () =
+  let module IntSList = M.Make (Int) in
+  let sl = IntSList.create () in
+  let n = 13 in
+  IntSList.add sl ~key:(n + 2) ~value:n;
+  IntSList.add sl ~key:n ~value:n;
+  IntSList.add sl ~key:(n + 1) ~value:n;
+  IntSList.remove (n + 2) sl;
+  IntSList.remove n sl;
+  IntSList.remove (n + 1) sl;
+  let actual = IntSList.length sl in
+  let expected = 0 in
+  check int "empty" actual expected
+
 let test_insertion () =
   let module IntSList = M.Make (Int) in
   let sl = IntSList.create () in
