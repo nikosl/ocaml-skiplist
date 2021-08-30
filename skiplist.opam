@@ -9,12 +9,15 @@ authors: ["Nikos Leivadaris"]
 license: "MIT"
 depends: [
   "ocaml" {>= "4.08.0"}
-  "dune"
+  "bisect_ppx" {with-test & >= "2.5.0"}
+  "dune" {>= "2.7" & >= "2.7.0"}
+  "qcstm" {with-test}
+  "core_bench" {>= "v0.14" & dev}
   "alcotest" {with-test}
   "odoc" {with-doc}
 ]
 build: [
-  ["dune" "subst"] {pinned}
+  ["dune" "subst"] {dev}
   [
     "dune"
     "build"

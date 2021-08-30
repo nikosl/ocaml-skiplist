@@ -5,199 +5,156 @@
  * https://opensource.org/licenses/MIT
  *)
 
-type ('k, 'v) pair = 'k * 'v option
+type ('k, 'v) pair = 'k * 'v
 
 type ('k, 'v) node =
   | Nil
-  | NInf of {
-      level_id : int;
-      mutable above : ('k, 'v) node option;
-      mutable below : ('k, 'v) node option;
-      mutable next : ('k, 'v) node;
-    }
-  | PInf of {
-      level_id : int;
-      mutable above : ('k, 'v) node option;
-      mutable below : ('k, 'v) node option;
-      mutable prev : ('k, 'v) node;
-    }
+  | NInf of ('k, 'v) node Array.t
   | Node of {
       key : 'k;
-      mutable value : 'v option;
-      level_id : int;
-      mutable above : ('k, 'v) node option;
-      mutable below : ('k, 'v) node option;
-      mutable next : ('k, 'v) node;
-      mutable prev : ('k, 'v) node;
+      mutable value : 'v;
+      mutable next : ('k, 'v) node Array.t;
     }
 
 type ('k, 'v) t = {
-  mutable top : ('k, 'v) level;
-  mutable bottom : ('k, 'v) level;
-  mutable levels_num : int;
-  levels : ('k, 'v) level Array.t;
+  mutable head : ('k, 'v) node;
+  mutable tail : ('k, 'v) node;
+  mutable length : int;
   max_level : int;
 }
 
-and ('k, 'v) level =
-  | Empty
-  | Cons of {
-      id : int;
-      mutable head : ('k, 'v) node;
-      mutable tail : ('k, 'v) node;
-      mutable above : ('k, 'v) level;
-      mutable below : ('k, 'v) level;
-      mutable length : int;
-    }
-
 module SNode : sig
-   val create : 'k -> 'v option -> int ->('k, 'v) node
-  val prev: ('k, 'v) node -> ('k, 'v) node
-  val get: ('k, 'v) node -> ('k, 'v) pair option
-val next: ('k, 'v) node -> ('k, 'v) node
-val link_nodes_hor: ('k, 'v) node -> ('k, 'v) node -> ('k, 'v) node -> unit
+  val create : 'k -> 'v -> int -> ('k, 'v) node
 
+  val value : ('k, 'v) node -> ('k, 'v) pair option
 
-val 
-  end = struct
+  val update : ('k, 'v) node -> 'v -> unit
 
-    let create k v i =
-      Node
-        {
-          level_id = i;
-          key = k;
-          value = v;
-          next = Nil;
-          prev = Nil;
-          below = None;
-          above = None;
-        }
+  val has_next : int -> ('k, 'v) node -> bool
 
-            let prev = function
-      | NInf _ | Nil -> Nil
-      | PInf n -> n.prev
-      | Node n -> n.prev
+  val link : int -> ('k, 'v) node -> ('k, 'v) node -> unit
 
-    let next = function
-      | PInf _ | Nil -> Nil
-      | NInf n -> n.next
-      | Node n -> n.next
+  val unlink : int -> ('k, 'v) node -> ('k, 'v) node -> unit
+end = struct
+  let create k v l =
+    Node { key = k; value = v; next = Array.init l (fun _ -> Nil) }
 
-      let get (nn : ('k, 'v) node) : ('k, 'v) pair option =
-    match nn with
-    | Node n -> Some (n.key, n.value)
-    | Nil | NInf _ | PInf _ -> None
+  let value = function Nil | NInf _ -> None | Node n -> Some (n.key, n.value)
 
+  let update c v =
+    match c with NInf _ | Nil -> assert false | Node n -> n.value <- v
 
-  let link_nodes_hor a b c : unit =
-    match (a, b, c) with
-    | NInf n1, Node n2, PInf n3 ->
-        n1.next <- b;
-        n2.prev <- a;
-        n2.next <- c;
-        n3.prev <- b
-    | NInf n1, Node n2, Node n3 ->
-        n1.next <- b;
-        n2.prev <- a;
-        n2.next <- c;
-        n3.prev <- b
-    | Node n1, Node n2, PInf n3 ->
-        n1.next <- b;
-        n2.prev <- a;
-        n2.next <- c;
-        n3.prev <- b
-    | Node n1, Node n2, Node n3 ->
-        n1.next <- b;
-        n2.prev <- a;
-        n2.next <- c;
-        n3.prev <- b
+  let next n i =
+    match n with Nil -> Nil | NInf l -> l.(i) | Node l -> l.next.(i)
+
+  let has_next i n =
+    match next n i with Nil -> false | Node _ -> true | NInf _ -> assert false
+
+  let link i n1 n2 =
+    let n3 = next n1 i in
+    match (n1, n2, n3) with
+    | NInf l1, Node l2, Nil ->
+        l1.(i) <- n2;
+        l2.next.(i) <- n3
+    | NInf l1, Node l2, Node _ ->
+        l1.(i) <- n2;
+        l2.next.(i) <- n3
+    | Node l1, Node l2, Nil ->
+        l1.next.(i) <- n2;
+        l2.next.(i) <- n3
+    | Node l1, Node l2, Node _ ->
+        l1.next.(i) <- n2;
+        l2.next.(i) <- n3
     | Nil, _, _ -> assert false
-    | PInf _, _, _ -> assert false
     | NInf _, _, _ -> assert false
     | Node _, _, _ -> assert false
 
-    let link_nodes_vert bn an =
-      match (bn, an) with
-      | PInf bn', PInf an' ->
-          bn'.above <- Some an;
-          an'.below <- Some bn
-      | NInf bn', NInf an' ->
-          bn'.above <- Some an;
-          an'.below <- Some bn
-      | Node bn', Node an' ->
-          bn'.above <- Some an;
-          an'.below <- Some bn
-      | NInf _, _ -> assert false
-      | Node _, _ -> assert false
-      | PInf _, _ -> assert false
-      | Nil, _ -> assert false
-
-    end
+  let unlink i n1 n2 =
+    let n3 = next n2 i in
+    match (n1, n3) with
+    | NInf l1, Nil -> l1.(i) <- n3
+    | NInf l1, Node _ -> l1.(i) <- n3
+    | Node l1, Nil -> l1.next.(i) <- n3
+    | Node l1, Node _ -> l1.next.(i) <- n3
+    | Nil, _ -> assert false
+    | NInf _, _ -> assert false
+    | Node _, _ -> assert false
+end
 
 let prng = lazy (Random.State.make_self_init ())
 
-let flip () : [ `Head | `Tail ] =
-  match Random.State.int (Lazy.force prng) 2 with
-  | 0 -> `Head
-  | 1 -> `Tail
-  | _ -> `Tail
-
-let create_level sl i =
-      (*
-         in *)
-      let ni = NInf { level_id = i; next = Nil; below = None; above = None } in
-      let pi = PInf { level_id = i; prev = Nil; below = None; above = None } in
-      let lvl =
-        Cons
-          {
-            id = i;
-            below = Empty;
-            above = Empty;
-            head = ni;
-            tail = pi;
-            length = 1;
-          }
-      in
-      sl.levels_num <- sl.levels_num + 1;
-      sl.levels.(i) <- lvl;
-      (ni, pi)
+let flip (p : int) : int = Random.State.int (Lazy.force prng) p
 
 module type OrderedType = sig
   type t
 
   val compare : t -> t -> int
+
+  val to_string : t -> string
 end
 
 module type S = sig
   type key
 
-  type 'a t
+  type !'a t
 
   val create : ?max_level:int -> unit -> 'a t
 
   val is_empty : 'a t -> bool
 
-  val copy : 'a t -> 'a t
-
   val length : 'a t -> int
 
-  val first : 'a t -> (key, 'a) pair option
+  val min : 'a t -> (key, 'a) pair option
 
-  val last : 'a t -> (key, 'a) pair option
+  val max : 'a t -> (key, 'a) pair option
 
-  val find : 'a t -> key -> (key, 'a) pair option
+  val find : key -> 'a t -> (key, 'a) pair option
 
-  val insert : 'a t -> ?value:'a -> key -> unit
+  val find_nearest :
+    key ->
+    'a t ->
+    [ `Gt of (key, 'a) pair
+    | `Lt of (key, 'a) pair
+    | `Eq of (key, 'a) pair
+    | `Empty ]
 
-  val remove : 'a t -> key -> unit
+  val find_range : start:key -> stop:key -> 'a t -> (key, 'a) pair list
 
-  val mem : 'a t -> key -> bool
+  val add : key:key -> value:'a -> 'a t -> unit
 
-  val flip : unit -> [ `Head | `Tail ]
+  val remove : key -> 'a t -> unit
 
-  val of_list : (key, 'a) pair list -> 'a t
+  val mem : key -> 'a t -> bool
 
-  val to_list : 'a t -> (key, 'a) pair list
+  val iter : (key -> 'a -> unit) -> 'a t -> unit
+
+  val filter_map_inplace : (key -> 'a -> 'a option) -> 'a t -> unit
+
+  val fold : 'a t -> init:'b -> f:(key:key -> value:'a -> 'b -> 'b) -> 'b
+
+  val flip : int -> int
+
+  val clear : 'a t -> unit
+
+  val copy : ?max_level:int -> 'a t -> 'a t
+
+  val of_alist : (key, 'a) pair list -> 'a t
+
+  val to_alist : 'a t -> (key, 'a) pair list
+
+  val to_string : 'a t -> string
+
+  val pp : Format.formatter -> 'a t -> unit [@@ocaml.toplevel_printer]
+
+  val to_seq : 'a t -> (key * 'a) Seq.t
+
+  val to_seq_keys : _ t -> key Seq.t
+
+  val to_seq_values : 'a t -> 'a Seq.t
+
+  val add_seq : 'a t -> (key * 'a) Seq.t -> unit
+
+  val of_seq : (key * 'a) Seq.t -> 'a t
 end
 
 module Make (Ord : OrderedType) : S with type key = Ord.t = struct
@@ -207,180 +164,232 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
 
   type 'a t = 'a skiplist
 
-  let default_max_level = 5
+  type 'a ranged = [ `Gt of 'a | `Lt of 'a | `Eq of 'a | `Empty ]
 
-  let create ?(max_level = default_max_level) () : 'a t =
-    let arr = Array.init max_level (fun _ -> Empty) in
-    {
-      top = arr.(max_level - 1);
-      bottom = arr.(0);
-      levels_num = 0;
-      levels = arr;
-      max_level;
-    }
-
-  let is_empty (sl : 'a t) =
-    match sl.bottom with Empty -> true | Cons l -> l.length = 0
-
-  let length (sl : 'a t) : int =
-    match sl.bottom with Empty -> 0 | Cons l -> l.length
-
-  let first (sl : 'a t) : (key, 'a) pair option =
-    match sl.bottom with
-    | Empty -> None
-    | Cons l -> (
-        match l.head with
-        | Nil -> None
-        | NInf i -> SNode.get i.next
-        | Node _ | PInf _ -> assert false)
-
-  let last (sl : 'a t) : (key, 'a) pair option =
-    match sl.bottom with
-    | Empty -> None
-    | Cons l -> (
-        match l.tail with
-        | Nil -> None
-        | PInf i -> SNode.get i.prev
-        | Node _ | NInf _ -> assert false)
-
-  let find_nearest_node (sl : 'a t) (key' : key) :
-      [ `Gt of (key, 'a) node
-      | `Lt of (key, 'a) node
-      | `Eq of (key, 'a) node
-      | `Navail ] =
-    let rec below pn =
-      match pn with
-      | Nil -> Nil
-      | PInf n -> below n.prev
-      | NInf n -> ( match n.below with None -> Nil | Some n -> n)
-      | Node n -> ( match n.below with None -> below n.prev | Some n -> n)
-    in
-    let rec aux_fnd key' nn ln =
-      match nn with
-      | Nil -> ln
-      | NInf n -> aux_fnd key' n.next ln
-      | PInf n -> aux_fnd key' (below n.prev) ln
-      | Node n -> (
-          match Ord.compare key' n.key with
-          | -1 -> aux_fnd key' n.next (`Lt nn)
-          | 0 -> `Eq nn
-          | 1 -> aux_fnd key' (below n.prev) (`Gt nn)
-          | _ -> assert false)
-    in
-    let rec find_lvl sl key i =
-      match sl.levels.(i) with
-      | Empty -> if i = 0 then `Navail else find_lvl sl key (i - 1)
-      | Cons l -> aux_fnd key' l.head (`Gt l.head)
-    in
-    find_lvl sl key' (sl.max_level - 1)
-
-  let find (sl : 'a t) (key' : key) : (key, 'a) pair option =
-    let f = find_nearest_node sl key' in
-    match f with `Eq n -> SNode.get n | `Navail | `Lt _ | `Gt _ -> None
-
-  let copy (sl : 'a t) : 'a t = sl
-
-  let insert (sl : 'a t) ?value (key' : key) : unit =
-    let rec above = function
-      | Nil -> Nil
-      | PInf n -> above n.prev
-      | NInf n -> ( match n.above with None -> Nil | Some n -> n)
-      | Node n -> ( match n.above with None -> above n.prev | Some n -> n)
-    in
-    let rec update_values v = function
-      | Node n ->
-          n.value <- v;
-          update_values v (Option.value ~default:Nil n.below)
-      | Nil | NInf _ | PInf _ -> ()
-    in
-    let rec should_add_above i pn nn =
-      match flip () with
-      | `Head ->
-          if i = sl.max_level then ()
-          else
-            let i = i + 1 in
-            let pn, nn = insert_node_above pn nn i in
-            should_add_above i pn nn
-      | `Tail -> ()
-    in
-    let add_new_node nn =
-      let ni, pi = create_level sl 0 in
-      link_nodes_vert ni nn pi;
-      should_add_above 0 ni nn
-    in
-   let rec insert_aux idx pn nn =
-      if idx = sl.max_level then () else
-      match flip () with
-      | `Head ->
-    in
-    let f = find_nearest_node sl key' in
-    match f with
-    | `Eq n -> update_values value n
-    | `Lt n -> link_nodes_vert (SNode.prev n) (create_node key' value 0) n
-    | `Gt n -> link_nodes_vert n (create_node key' value 0) (SNode.next n)
-    | `Navail -> add_new_node (create_node key' value 0)
-
-  let remove (sl : 'a t) (key' : key) : unit =
-    let decr_lvl lvl =
-      match lvl with
-      | Empty -> assert false
-      | Cons l -> l.length <- l.length - 1
-    in
-    let below nn = match nn with None -> Nil | Some n -> n in
-    let link a b =
-      match (a, b) with
-      | NInf n1, Node n2 ->
-          n1.next <- b;
-          n2.prev <- a
-      | Node n1, PInf n2 ->
-          n1.next <- b;
-          n2.prev <- a
-      | Node n1, Node n2 ->
-          n1.next <- b;
-          n2.prev <- a
-      | NInf n1, PInf n2 ->
-          n1.next <- b;
-          n2.prev <- a
-      | Nil, _ -> assert false
-      | PInf _, _ -> assert false
-      | NInf _, _ -> assert false
-      | Node _, _ -> assert false
-    in
-    let rec aux_remove nn =
-      match nn with
-      | Nil | NInf _ | PInf _ -> ()
-      | Node n ->
-          let lvl = n.level_id in
-          link n.prev n.next;
-          decr_lvl sl.levels.(lvl);
-          let b = below n.below in
-          n.above <- None;
-          n.below <- None;
-          aux_remove b
-    in
-    let f = find_nearest_node sl key' in
-    match f with `Eq n -> aux_remove n | `Navail | `Lt _ | `Gt _ -> ()
-
-  let mem (sl : 'a t) (key' : key) : bool =
-    let f = find sl key' in
-    match f with None -> false | Some _ -> true
+  let default_max_level = 15
 
   let flip = flip
 
-  let of_list (_el : (key, 'a) pair list) : 'a t = failwith "not implemented"
+  let create ?(max_level = default_max_level) () : 'a t =
+    let head = NInf (Array.init max_level (fun _ -> Nil)) in
+    { length = 0; tail = Nil; head; max_level }
 
-  let to_list (sl : 'a t) : (key, 'a) pair list =
-    let rec aux_to_list nn l =
-      match nn with
-      | Nil -> l
-      | NInf _ -> l
-      | PInf n -> aux_to_list n.prev l
-      | Node n -> aux_to_list n.prev ((n.key, n.value) :: l)
+  let is_empty (sl : 'a t) = sl.length = 0
+
+  let length (sl : 'a t) : int = sl.length
+
+  (* let level (sl : 'a t) : int = sl.max_level *)
+
+  let min (sl : 'a t) : (key, 'a) pair option =
+    match sl.head with
+    | NInf l -> SNode.value l.(0)
+    | Nil -> assert false
+    | Node _ -> assert false
+
+  let max (sl : 'a t) : (key, 'a) pair option =
+    match sl.tail with
+    | Nil -> None
+    | Node n -> Some (n.key, n.value)
+    | NInf _ -> assert false
+
+  let search_level c key i =
+    let rec aux_search c i (ln, m) =
+      match c with
+      | NInf n -> aux_search n.(i) i (c, `Empty)
+      | Nil -> (ln, m)
+      | Node n -> (
+          match Ord.compare key n.key with
+          | -1 -> (ln, `Lt c)
+          | 0 -> (ln, `Eq c)
+          | 1 -> aux_search n.next.(i) i (c, `Gt c)
+          | _ -> assert false)
     in
-    match sl.bottom with Empty -> [] | Cons l -> aux_to_list l.tail []
+    aux_search c i (Nil, `Empty)
 
-  (* let hd (sl : 'a t) : node =
-     match sl.bottom with Empty -> Nil | Cons l -> match l.head with *)
+  let find_nearest_nodes (sl : 'a t) (key : key) :
+      (int * (key, 'a) node) list * (key, 'a) node ranged =
+    let rec aux_find c i (v, m) =
+      if i < 0 then (v, m)
+      else
+        let n, m = search_level c key i in
+        match m with
+        | `Eq _ -> ((i, n) :: v, m)
+        | _ -> aux_find n (i - 1) ((i, n) :: v, m)
+    in
+    aux_find sl.head (sl.max_level - 1) ([], `Empty)
 
-  (* let map (sl:'a t ) ~f : (fun elt -> 'b) : 'b list *)
+  let find_linked (sl : 'a t) (key : key) :
+      (int * (key, 'a) node) list * (key, 'a) node ranged =
+    let rec aux_find c i (v, m) =
+      if i < 0 then (v, m)
+      else
+        let n, m = search_level c key i in
+        match m with
+        | `Eq _ -> aux_find n (i - 1) ((i, n) :: v, m)
+        | _ -> aux_find n (i - 1) (v, m)
+    in
+    aux_find sl.head (sl.max_level - 1) ([], `Empty)
+
+  let find (key : key) (sl : 'a t) : (key, 'a) pair option =
+    let _, f = find_nearest_nodes sl key in
+    match f with `Eq n -> SNode.value n | _ -> None
+
+  let find_nearest (key : key) (sl : 'a t) :
+      [ `Gt of (key, 'a) pair
+      | `Lt of (key, 'a) pair
+      | `Eq of (key, 'a) pair
+      | `Empty ] =
+    let _, f = find_nearest_nodes sl key in
+    let value f n = Option.fold ~none:`Empty ~some:f (SNode.value n) in
+    match f with
+    | `Empty -> `Empty
+    | `Gt n -> value (fun v -> `Gt v) n
+    | `Lt n -> value (fun v -> `Lt v) n
+    | `Eq n -> value (fun v -> `Eq v) n
+
+  let find_range ~(start : key) ~(stop : key) (sl : 'a t) : (key, 'a) pair list
+      =
+    assert (start <= stop);
+    let r = [] in
+    let rec until f l acc =
+      match f with
+      | NInf _ | Nil -> acc
+      | Node n -> (
+          match Ord.compare n.key l with
+          | -1 -> until n.next.(0) l ((n.key, n.value) :: acc)
+          | 0 | 1 -> acc
+          | _ -> assert false)
+    in
+    let _, s = search_level sl.head start 0 in
+    match s with
+    | `Lt n -> until n stop r
+    | `Eq n -> until n stop r
+    | `Empty | `Gt _ -> r
+
+  let add ~(key : key) ~(value : 'a) (sl : 'a t) : unit =
+    let rec aux_add (p : (int * (key, 'a) node) list) n (i : int) =
+      match p with
+      | [] -> ()
+      | h :: t ->
+          let l, pn = h in
+          if i >= l then (
+            SNode.link l pn n;
+            aux_add t n i)
+          else ()
+    in
+    let path, f = find_nearest_nodes sl key in
+    match f with
+    | `Eq n -> SNode.update n value
+    | _ ->
+        let lvl = flip sl.max_level in
+        let n = SNode.create key value sl.max_level in
+        sl.length <- sl.length + 1;
+        aux_add path n lvl;
+        if SNode.has_next 0 n then () else sl.tail <- n
+
+  let remove (key : key) (sl : 'a t) : unit =
+    let rec aux_remove path n =
+      match path with
+      | [] -> if sl.length = 0 then sl.tail <- Nil
+      | h :: t ->
+          let l, pn = h in
+          SNode.unlink l pn n;
+          if l = 0 && not (SNode.has_next 0 pn) then sl.tail <- pn;
+          aux_remove t n
+    in
+    let path, f = find_linked sl key in
+    match f with
+    | `Eq n ->
+        sl.length <- sl.length - 1;
+        aux_remove path n
+    | `Empty -> ()
+    | _ -> assert false
+
+  let mem (key : key) (sl : 'a t) : bool =
+    let f = find key sl in
+    match f with None -> false | Some _ -> true
+
+  let filter_map_inplace f sl =
+    let rec aux_do c =
+      match c with
+      | Nil -> ()
+      | NInf n -> aux_do n.(0)
+      | Node n -> (
+          let next = n.next.(0) in
+          match f n.key n.value with
+          | None -> remove n.key sl
+          | Some v ->
+              n.value <- v;
+              aux_do next)
+    in
+    aux_do sl.head
+
+  let fold (sl : 'a t) ~init ~f =
+    let rec aux_fold c acc =
+      match c with
+      | Nil -> acc
+      | NInf n -> aux_fold n.(0) acc
+      | Node n -> aux_fold n.next.(0) (f ~key:n.key ~value:n.value acc)
+    in
+    aux_fold sl.head init
+
+  let iter f sl = fold sl ~init:() ~f:(fun ~key ~value _ -> f key value)
+
+  let clear sl =
+    sl.length <- 0;
+    sl.tail <- Nil;
+    sl.head <- NInf (Array.init sl.max_level (fun _ -> Nil))
+
+  let copy ?max_level (sl : 'a t) : 'a t =
+    let ml = match max_level with None -> sl.max_level | Some n -> n in
+    let sl' = create ~max_level:ml () in
+    fold sl ~init:sl' ~f:(fun ~key ~value acc ->
+        add acc ~key ~value;
+        acc)
+
+  let of_alist (el : (key, 'a) pair list) : 'a t =
+    let sl = create () in
+    List.iter (fun (key, value) -> add ~key ~value sl) el;
+    sl
+
+  let to_alist (sl : 'a t) : (key, 'a) pair list =
+    fold sl ~init:[] ~f:(fun ~key ~value acc -> (key, value) :: acc)
+
+  let to_string (sl : 'a t) : string =
+    let rec aux_lvl c i str =
+      match c with
+      | Nil -> str ^ "]"
+      | NInf n -> aux_lvl n.(i) i "[ "
+      | Node n -> aux_lvl n.next.(i) i (str ^ Ord.to_string n.key ^ "; ")
+    in
+    let rec aux_str c i str =
+      let i = i - 1 in
+      if i < 0 then str
+      else
+        let lvl = aux_lvl c i "" in
+        aux_str c i (Printf.sprintf "%slevel: %d = %s\n" str i lvl)
+    in
+    aux_str sl.head sl.max_level ""
+
+  let pp ppf sl = Format.pp_print_string ppf (to_string sl)
+
+  let to_seq sl : (key * 'a) Seq.t =
+    let rec aux_seq c () =
+      match c with
+      | Nil -> Seq.Nil
+      | NInf n -> aux_seq n.(0) ()
+      | Node n -> Seq.Cons ((n.key, n.value), aux_seq n.next.(0))
+    in
+    aux_seq sl.head
+
+  let to_seq_keys sl : key Seq.t = Seq.map fst (to_seq sl)
+
+  let to_seq_values sl : 'a Seq.t = Seq.map snd (to_seq sl)
+
+  let add_seq sl i = Seq.iter (fun (key, value) -> add ~key ~value sl) i
+
+  let of_seq i =
+    let sl = create () in
+    add_seq sl i;
+    sl
 end

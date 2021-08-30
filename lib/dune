@@ -1,4 +1,6 @@
 (library
  (name skiplist)
  (public_name skiplist)
- (libraries))
+ (wrapped false)
+ (instrumentation
+  (backend bisect_ppx)))

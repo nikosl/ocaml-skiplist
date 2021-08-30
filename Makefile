@@ -1,7 +1,5 @@
 .DEFAULT_GOAL := all
 
-ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-$(eval $(ARGS):;@:)
 
 .PHONY: all
 all:
@@ -33,13 +31,22 @@ build: ## Build the project, including non installable libraries and executables
 install: all ## Install the packages on the system
 	opam exec -- dune install --root .
 
-.PHONY: start
-start: all ## Run the produced executable
-	opam exec -- dune exec --root . bin/main.exe $(ARGS)
-
 .PHONY: test
 test: ## Run the unit tests
 	opam exec -- dune runtest --root .
+
+.PHONY : coverage
+coverage : ## Generate coverage report
+	find . -name '*.coverage' | xargs rm -f
+	opam exec -- dune runtest --root . --instrument-with bisect_ppx --force
+	opam exec -- bisect-ppx-report html
+	opam exec -- bisect-ppx-report summary
+	@echo See _coverage/index.html
+
+.PHONY: bench
+bench: ## Run benchmarks
+	opam exec -- dune build --root . --profile=release
+	opam exec -- dune exec --root . bench/bench.exe -- -quota 5
 
 .PHONY: clean
 clean: ## Clean build artifacts and other generated files
@@ -55,7 +62,7 @@ servedoc: doc ## Open odoc documentation with default web browser
 
 .PHONY: fmt
 fmt: ## Format the codebase with ocamlformat
-	opam exec -- dune build --root . --auto-promote @fmt
+	opam exec -- dune build --root . --auto-promote @fmt || true
 
 .PHONY: watch
 watch: ## Watch for the filesystem and rebuild on every change
