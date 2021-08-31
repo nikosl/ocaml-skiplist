@@ -20,6 +20,7 @@ type ('k, 'v) t = {
   mutable head : ('k, 'v) node;
   mutable tail : ('k, 'v) node;
   mutable length : int;
+  mutable cur_level : int;
   max_level : int;
 }
 
@@ -172,7 +173,7 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
 
   let create ?(max_level = default_max_level) () : 'a t =
     let head = NInf (Array.init max_level (fun _ -> Nil)) in
-    { length = 0; tail = Nil; head; max_level }
+    { length = 0; tail = Nil; cur_level = 0; head; max_level }
 
   let is_empty (sl : 'a t) = sl.length = 0
 
@@ -206,7 +207,20 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
     in
     aux_search c i (Nil, `Empty)
 
-  let find_nearest_nodes (sl : 'a t) (key : key) :
+  let rec find_node_eq key c pn i =
+    if i >= 0 then
+      match c with
+      | NInf n -> find_node_eq key n.(i) c i
+      | Nil -> find_node_eq key pn c (i - 1)
+      | Node { key = k; value; next } -> (
+          match Ord.compare key k with
+          | -1 -> find_node_eq key pn c (i - 1)
+          | 0 -> Some (k, value)
+          | 1 -> find_node_eq key next.(i) c i
+          | _ -> assert false)
+    else None
+
+  let find_nearest_nodes (sl : 'a t) (key : key) lvl :
       (int * (key, 'a) node) list * (key, 'a) node ranged =
     let rec aux_find c i (v, m) =
       if i < 0 then (v, m)
@@ -216,7 +230,20 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
         | `Eq _ -> ((i, n) :: v, m)
         | _ -> aux_find n (i - 1) ((i, n) :: v, m)
     in
-    aux_find sl.head (sl.max_level - 1) ([], `Empty)
+    aux_find sl.head lvl ([], `Empty)
+
+  let rec find_node_nearest k c pn i d =
+    if i >= 0 then
+      match c with
+      | NInf n -> find_node_nearest k n.(i) c i d
+      | Nil -> find_node_nearest k pn c (i - 1) d
+      | Node { key; value; next } -> (
+          match Ord.compare k key with
+          | -1 -> find_node_nearest k pn c (i - 1) (`Lt (key, value))
+          | 0 -> `Eq (key, value)
+          | 1 -> find_node_nearest k next.(i) c i (`Gt (key, value))
+          | _ -> assert false)
+    else d
 
   let find_linked (sl : 'a t) (key : key) :
       (int * (key, 'a) node) list * (key, 'a) node ranged =
@@ -228,29 +255,21 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
         | `Eq _ -> aux_find n (i - 1) ((i, n) :: v, m)
         | _ -> aux_find n (i - 1) (v, m)
     in
-    aux_find sl.head (sl.max_level - 1) ([], `Empty)
+    aux_find sl.head sl.cur_level ([], `Empty)
 
   let find (key : key) (sl : 'a t) : (key, 'a) pair option =
-    let _, f = find_nearest_nodes sl key in
-    match f with `Eq n -> SNode.value n | _ -> None
+    find_node_eq key sl.head Nil sl.cur_level
 
   let find_nearest (key : key) (sl : 'a t) :
       [ `Gt of (key, 'a) pair
       | `Lt of (key, 'a) pair
       | `Eq of (key, 'a) pair
       | `Empty ] =
-    let _, f = find_nearest_nodes sl key in
-    let value f n = Option.fold ~none:`Empty ~some:f (SNode.value n) in
-    match f with
-    | `Empty -> `Empty
-    | `Gt n -> value (fun v -> `Gt v) n
-    | `Lt n -> value (fun v -> `Lt v) n
-    | `Eq n -> value (fun v -> `Eq v) n
+    find_node_nearest key sl.head Nil sl.cur_level `Empty
 
   let find_range ~(start : key) ~(stop : key) (sl : 'a t) : (key, 'a) pair list
       =
-    assert (start <= stop);
-    let r = [] in
+    if start > stop then [] else
     let rec until f l acc =
       match f with
       | NInf _ | Nil -> acc
@@ -262,9 +281,9 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
     in
     let _, s = search_level sl.head start 0 in
     match s with
-    | `Lt n -> until n stop r
-    | `Eq n -> until n stop r
-    | `Empty | `Gt _ -> r
+    | `Lt n -> until n stop []
+    | `Eq n -> until n stop []
+    | `Empty | `Gt _ -> []
 
   let add ~(key : key) ~(value : 'a) (sl : 'a t) : unit =
     let rec aux_add (p : (int * (key, 'a) node) list) n (i : int) =
@@ -277,11 +296,12 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
             aux_add t n i)
           else ()
     in
-    let path, f = find_nearest_nodes sl key in
+    let lvl = flip sl.max_level in
+    let path, f = find_nearest_nodes sl key lvl in
     match f with
     | `Eq n -> SNode.update n value
     | _ ->
-        let lvl = flip sl.max_level in
+        if sl.cur_level < lvl then sl.cur_level <- lvl;
         let n = SNode.create key value sl.max_level in
         sl.length <- sl.length + 1;
         aux_add path n lvl;
@@ -302,8 +322,7 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
     | `Eq n ->
         sl.length <- sl.length - 1;
         aux_remove path n
-    | `Empty -> ()
-    | _ -> assert false
+    | _ -> ()
 
   let mem (key : key) (sl : 'a t) : bool =
     let f = find key sl in
@@ -337,6 +356,7 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
 
   let clear sl =
     sl.length <- 0;
+    sl.cur_level <- 0;
     sl.tail <- Nil;
     sl.head <- NInf (Array.init sl.max_level (fun _ -> Nil))
 
@@ -369,7 +389,19 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
         let lvl = aux_lvl c i "" in
         aux_str c i (Printf.sprintf "%slevel: %d = %s\n" str i lvl)
     in
-    aux_str sl.head sl.max_level ""
+    let key_str k =
+      match k with None -> "None" | Some (k', _) -> Ord.to_string k'
+    in
+    let hdr =
+      Printf.sprintf "Info: max_level: %d, level: %d, len: %#d\n" sl.max_level
+        sl.cur_level sl.length
+    in
+    let info =
+      Printf.sprintf "%s Elements: min: %s, max: %s\n" hdr
+        (key_str (min sl))
+        (key_str (max sl))
+    in
+    aux_str sl.head sl.max_level info
 
   let pp ppf sl = Format.pp_print_string ppf (to_string sl)
 
