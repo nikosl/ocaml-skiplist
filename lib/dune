@@ -3,4 +3,6 @@
  (public_name skiplist)
  (wrapped false)
  (instrumentation
-  (backend bisect_ppx)))
+  (backend bisect_ppx))
+ (instrumentation
+  (backend landmarks --auto)))

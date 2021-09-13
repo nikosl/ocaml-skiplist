@@ -1,4 +1,4 @@
-(lang dune 2.7)
+(lang dune 2.9)
 
 (name skiplist)
 
@@ -7,6 +7,13 @@
 (authors "Nikos Leivadaris")
 
 (maintainers "Nikos Leivadaris")
+
+(source
+ (github nikosl/ocaml-skiplist))
+
+(homepage "https://github.com/nikosl/ocaml-skiplist")
+
+(bug_reports "https://github.com/nikosl/ocaml-skiplist")
 
 (generate_opam_files true)
 
@@ -19,13 +26,30 @@
  (depends
   (ocaml
    (>= 4.08.0))
+  (dune
+   (>= 2.9))
+  (core_bench
+   (and
+    (>= v0.14)
+    :dev))
+  (memtrace
+   (and
+    (>= 0.2)
+    :dev))
+  (qcstm
+   (and
+    (>= 0.1.1)
+    :with-test))
+  (qcheck-alcotest
+   (and
+    (>= 0.18)
+    :with-test))
   (bisect_ppx
    (and
     :with-test
     (>= 2.5.0)))
-  (dune
-   (>= 2.7.0))
-  (qcstm :with-test)
-  (core_bench (and (>= "v0.14") :dev))
-  (alcotest :with-test)
+  (alcotest
+   (and
+    (>= 1.4.0)
+    :with-test))
   (odoc :with-doc)))

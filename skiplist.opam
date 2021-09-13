@@ -7,13 +7,17 @@ description:
 maintainer: ["Nikos Leivadaris"]
 authors: ["Nikos Leivadaris"]
 license: "MIT"
+homepage: "https://github.com/nikosl/ocaml-skiplist"
+bug-reports: "https://github.com/nikosl/ocaml-skiplist"
 depends: [
   "ocaml" {>= "4.08.0"}
-  "bisect_ppx" {with-test & >= "2.5.0"}
-  "dune" {>= "2.7" & >= "2.7.0"}
-  "qcstm" {with-test}
+  "dune" {>= "2.9" & >= "2.9"}
   "core_bench" {>= "v0.14" & dev}
-  "alcotest" {with-test}
+  "memtrace" {>= "0.2" & dev}
+  "qcstm" {>= "0.1.1" & with-test}
+  "qcheck-alcotest" {>= "0.18" & with-test}
+  "bisect_ppx" {with-test & >= "2.5.0"}
+  "alcotest" {>= "1.4.0" & with-test}
   "odoc" {with-doc}
 ]
 build: [
@@ -25,8 +29,11 @@ build: [
     name
     "-j"
     jobs
+    "--promote-install-files=false"
     "@install"
     "@runtest" {with-test}
     "@doc" {with-doc}
   ]
+  ["dune" "install" "-p" name "--create-install-files" name]
 ]
+dev-repo: "git+https://github.com/nikosl/ocaml-skiplist.git"

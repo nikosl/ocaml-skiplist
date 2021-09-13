@@ -30,3 +30,6 @@ _opam/
 
 # test coverage report
 _coverage/
+
+# ide
+.vscode

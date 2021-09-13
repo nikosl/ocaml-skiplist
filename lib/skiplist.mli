@@ -8,7 +8,7 @@
 (** A SkipList behaves as a sorted list with, typically, O(log(n)) cost for
     insertion, look-up and removal *)
 
-type (!'k, !'v) t
+type ('k, 'v) t
 (** The type of the [skiplist]*)
 
 type ('k, 'v) pair = 'k * 'v
@@ -34,7 +34,7 @@ module type S = sig
   type key
   (** The type of the skiplist elements. *)
 
-  type !'a t
+  type 'a t
   (** The type of skiplists. *)
 
   val create : ?max_level:int -> unit -> 'a t
@@ -53,6 +53,8 @@ module type S = sig
   (** Return the max element of the skiplist. *)
 
   val find : key -> 'a t -> (key, 'a) pair option
+
+  val find_finger : key -> 'a t -> (key * 'a) option
 
   val find_nearest :
     key ->
