@@ -7,8 +7,6 @@
 
 type level = { id : int; mutable length : int }
 
-type level = { id : int; mutable length : int }
-
 type ('k, 'v) node =
   | Nil
   | NInf of ('k, 'v) node Array.t
@@ -136,8 +134,6 @@ module type S = sig
 
   val find_finger : 'a t -> key -> 'a option
 
-  val find_finger : 'a t -> key -> 'a option
-
   val find_nearest :
     'a t ->
     key ->
@@ -147,9 +143,9 @@ module type S = sig
 
   val add : key:key -> value:'a -> 'a t -> unit
 
-  val to_string : 'a t -> string
+  val remove : 'a t -> key -> unit
 
-  val pp : Format.formatter -> 'a t -> unit [@@ocaml.toplevel_printer]
+  val mem : 'a t -> key -> bool
 
   val iter : f:(key -> 'a -> unit) -> 'a t -> unit
 
