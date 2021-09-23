@@ -5,8 +5,6 @@
  * https://opensource.org/licenses/MIT
  *)
 
-type ('k, 'v) pair = 'k * 'v
-
 type level = { id : int; mutable length : int }
 
 type ('k, 'v) node =
@@ -31,11 +29,11 @@ type ('k, 'v) t = {
 module SNode : sig
   val create : 'k -> 'v -> int -> ('k, 'v) node
 
-  val value : ('k, 'v) node -> ('k, 'v) pair option
+  val value : ('k, 'v) node -> ('k * 'v) option
 
   val update : ('k, 'v) node -> 'v -> unit
 
-  val next : ('k, 'v) node -> int -> ('k, 'v) node
+  (* val next : ('k, 'v) node -> int -> ('k, 'v) node *)
 
   val has_next : int -> ('k, 'v) node -> bool
 
@@ -105,7 +103,6 @@ let prng = lazy (Random.State.make_self_init ())
 let flip (p : int) : int =
   let lvl = ref 0 in
   while Random.State.bool (Lazy.force prng) && !lvl < p - 1 do
-    (* Int.logand (Random.bits ()) ((Int.shift_left 1 16) - 1) *)
     incr lvl
   done;
   !lvl
@@ -129,33 +126,30 @@ module type S = sig
 
   val length : 'a t -> int
 
-  val min : 'a t -> (key, 'a) pair option
+  val min : 'a t -> (key * 'a) option
 
-  val max : 'a t -> (key, 'a) pair option
+  val max : 'a t -> (key * 'a) option
 
-  val find : key -> 'a t -> (key, 'a) pair option
+  val find : 'a t -> key -> 'a option
 
-  val find_finger : key -> 'a t -> (key * 'a) option
+  val find_finger : 'a t -> key -> 'a option
 
   val find_nearest :
-    key ->
     'a t ->
-    [ `Gt of (key, 'a) pair
-    | `Lt of (key, 'a) pair
-    | `Eq of (key, 'a) pair
-    | `Empty ]
+    key ->
+    [ `Gt of key * 'a | `Lt of key * 'a | `Eq of key * 'a | `Empty ]
 
-  val find_range : start:key -> stop:key -> 'a t -> (key, 'a) pair list
+  val find_range : start:key -> stop:key -> 'a t -> (key * 'a) list
 
   val add : key:key -> value:'a -> 'a t -> unit
 
-  val remove : key -> 'a t -> unit
+  val remove : 'a t -> key -> unit
 
-  val mem : key -> 'a t -> bool
+  val mem : 'a t -> key -> bool
 
-  val iter : (key -> 'a -> unit) -> 'a t -> unit
+  val iter : f:(key -> 'a -> unit) -> 'a t -> unit
 
-  val filter_map_inplace : (key -> 'a -> 'a option) -> 'a t -> unit
+  val filter_map_inplace : f:(key -> 'a -> 'a option) -> 'a t -> unit
 
   val fold : 'a t -> init:'b -> f:(key:key -> value:'a -> 'b -> 'b) -> 'b
 
@@ -165,9 +159,9 @@ module type S = sig
 
   val copy : ?max_level:int -> 'a t -> 'a t
 
-  val of_alist : (key, 'a) pair list -> 'a t
+  val of_alist : (key * 'a) list -> 'a t
 
-  val to_alist : 'a t -> (key, 'a) pair list
+  val to_alist : 'a t -> (key * 'a) list
 
   val to_string : 'a t -> string
 
@@ -197,8 +191,6 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
 
   let flip = flip
 
-  (* let balanced sl = let l = float_of_int sl.max_level in let n = 0 *)
-
   let create ?(max_level = default_max_level) () : 'a t =
     let lvl = Array.init max_level (fun _ -> Nil) in
     let head = NInf lvl in
@@ -212,13 +204,13 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
 
   (* let level (sl : 'a t) : int = sl.max_level *)
 
-  let min (sl : 'a t) : (key, 'a) pair option =
+  let min (sl : 'a t) : (key * 'a) option =
     match sl.head with
     | NInf l -> SNode.value l.(0)
     | Nil -> assert false
     | Node _ -> assert false
 
-  let max (sl : 'a t) : (key, 'a) pair option =
+  let max (sl : 'a t) : (key * 'a) option =
     match sl.tail with
     | Nil -> None
     | Node n -> Some (n.key, n.value)
@@ -231,15 +223,9 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
     | 1 -> `Gt
     | _ -> assert false
 
-  let compare_key_node k = function
-    | NInf _ -> `Gt
-    | Nil -> `Empty
-    | Node { key; _ } -> (
-        match Ord.compare k key with
-        | -1 -> `Lt
-        | 0 -> `Eq
-        | 1 -> `Gt
-        | _ -> assert false)
+  (* let compare_key_node k = function | NInf _ -> `Gt | Nil -> `Empty | Node {
+     key; _ } -> ( match Ord.compare k key with | -1 -> `Lt | 0 -> `Eq | 1 ->
+     `Gt | _ -> assert false) *)
 
   let search_level k i c =
     let rec aux_iter_lvl c pc m =
@@ -263,7 +249,7 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
       | Node { key = k; value; next } -> (
           match Ord.compare key k with
           | -1 -> find_node_eq key pn c (i - 1)
-          | 0 -> Some (k, value)
+          | 0 -> Some value
           | 1 -> find_node_eq key next.(i) c i
           | _ -> assert false)
     else None
@@ -303,35 +289,20 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
     in
     aux_find sl.head sl.cur_level [] Nil
 
-  let find (key : key) (sl : 'a t) : (key, 'a) pair option =
+  let find (sl : 'a t) (key : key) : 'a option =
     if is_empty sl then None else find_node_eq key sl.head Nil sl.cur_level
 
   let find_finger_point (key : key) (sl : 'a t) =
-    let rec fwd k i sl c =
+    let rec fwd k i sl =
       if i <= sl.cur_level then
-        let c' = sl.finger.(i) in
-        match SNode.next c' i with
-        | NInf _ -> fwd k (i + 1) sl c'
-        | Nil -> (i, c')
+        let c = sl.finger.(i) in
+        match c with
+        | NInf _ | Nil -> fwd k (i + 1) sl
         | Node n ->
-            if Ord.compare k n.key <= 0 then (i, c') else fwd k (i + 1) sl c'
-      else (i - 1, c)
+            if Ord.compare n.key k <= 0 then (i, c) else fwd k (i + 1) sl
+      else (i - 1, sl.head)
     in
-    let rec bwd k i sl c =
-      if i <= sl.cur_level then
-        let c' = sl.finger.(i) in
-        match c' with
-        | NInf _ | Nil -> (i - 1, c)
-        | Node n ->
-            if Ord.compare k n.key <= 0 then bwd k (i + 1) sl c' else (i - 1, c)
-      else (sl.cur_level, sl.head)
-    in
-    let i, x =
-      match compare_key_node key sl.finger.(0) with
-      | `Gt -> fwd key 1 sl sl.finger.(0)
-      | _ -> bwd key 1 sl sl.finger.(0)
-    in
-    (i, x)
+    fwd key 0 sl
 
   let add_finger_point key lvl n sl =
     let rec aux_add_finger k i c p sl =
@@ -340,30 +311,25 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
       | Nil -> sl.finger.(i) <- p
       | Node n -> (
           match compare_key k n.key with
-          | `Lt | `Eq -> sl.finger.(i) <- p
+          | `Lt | `Eq -> sl.finger.(i) <- c
           | `Gt -> aux_add_finger k i n.next.(i) c sl)
     in
     for i = lvl downto 0 do
       aux_add_finger key i n sl.head sl
     done
 
-  let find_finger (key : key) (sl : 'a t) : (key * 'a) option =
+  let find_finger (sl : 'a t) (key : key) : 'a option =
     if is_empty sl then None
     else
       let i, m = find_finger_point key sl in
       add_finger_point key i m sl;
-      match SNode.next sl.finger.(0) 0 with
+      match sl.finger.(0) with
       | Nil | NInf _ -> None
       | Node n -> (
-          match compare_key key n.key with
-          | `Eq -> Some (key, n.value)
-          | _ -> None)
+          match compare_key key n.key with `Eq -> Some n.value | _ -> None)
 
-  let find_nearest (key : key) (sl : 'a t) :
-      [ `Gt of (key, 'a) pair
-      | `Lt of (key, 'a) pair
-      | `Eq of (key, 'a) pair
-      | `Empty ] =
+  let find_nearest (sl : 'a t) (key : key) :
+      [ `Gt of key * 'a | `Lt of key * 'a | `Eq of key * 'a | `Empty ] =
     find_node_nearest key sl.head Nil sl.cur_level `Empty
 
   let rec from k c =
@@ -380,8 +346,7 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
           until ((n.key, n.value) :: acc) k n.next.(0)
         else acc
 
-  let find_range ~(start : key) ~(stop : key) (sl : 'a t) : (key, 'a) pair list
-      =
+  let find_range ~(start : key) ~(stop : key) (sl : 'a t) : (key * 'a) list =
     if start > stop then [] else from start sl.head |> until [] stop
 
   let add ~(key : key) ~(value : 'a) (sl : 'a t) : unit =
@@ -402,7 +367,6 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
         if sl.cur_level < lvl then sl.cur_level <- lvl;
         let n = SNode.create key value sl.max_level in
         sl.length <- sl.length + 1;
-        (* aux_add path n lvl; *)
         List.to_seq path |> take lvl
         |> Seq.iter (fun (l, pn) ->
                let lvl = sl.level.(l) in
@@ -410,7 +374,7 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
                SNode.link l pn n);
         if SNode.has_next 0 n then () else sl.tail <- n
 
-  let remove (key : key) (sl : 'a t) : unit =
+  let remove (sl : 'a t) (key : key) : unit =
     let rec aux_remove path n =
       match path with
       | [] -> if sl.length = 0 then sl.tail <- Nil
@@ -419,6 +383,7 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
           SNode.unlink l pn n;
           let lvl = sl.level.(l) in
           lvl.length <- lvl.length - 1;
+          sl.finger.(l) <- pn;
           if l = 0 && not (SNode.has_next 0 pn) then sl.tail <- pn;
           aux_remove t n
     in
@@ -429,11 +394,11 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
         aux_remove path n
     | Nil | NInf _ -> ()
 
-  let mem (key : key) (sl : 'a t) : bool =
-    let f = find key sl in
+  let mem (sl : 'a t) (key : key) : bool =
+    let f = find sl key in
     match f with None -> false | Some _ -> true
 
-  let filter_map_inplace f sl =
+  let filter_map_inplace ~(f : key -> 'a -> 'a option) (sl : 'a t) =
     let rec aux_do c =
       match c with
       | Nil -> ()
@@ -441,7 +406,7 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
       | Node n -> (
           let next = n.next.(0) in
           match f n.key n.value with
-          | None -> remove n.key sl
+          | None -> remove sl n.key
           | Some v ->
               n.value <- v;
               aux_do next)
@@ -457,7 +422,7 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
     in
     aux_fold sl.head init
 
-  let iter f sl = fold sl ~init:() ~f:(fun ~key ~value _ -> f key value)
+  let iter ~f sl = fold sl ~init:() ~f:(fun ~key ~value _ -> f key value)
 
   let clear (sl : 'a t) =
     sl.length <- 0;
@@ -474,12 +439,12 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
         add acc ~key ~value;
         acc)
 
-  let of_alist (el : (key, 'a) pair list) : 'a t =
+  let of_alist (el : (key * 'a) list) : 'a t =
     let sl = create () in
     List.iter (fun (key, value) -> add ~key ~value sl) el;
     sl
 
-  let to_alist (sl : 'a t) : (key, 'a) pair list =
+  let to_alist (sl : 'a t) : (key * 'a) list =
     fold sl ~init:[] ~f:(fun ~key ~value acc -> (key, value) :: acc)
 
   let to_string (sl : 'a t) : string =
@@ -503,10 +468,22 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
       Printf.sprintf "Info: max_level: %d, level: %d, len: %#d\n" sl.max_level
         sl.cur_level sl.length
     in
+    let aux_node c =
+      match c with
+      | Nil -> "nill"
+      | NInf _ -> "ninf"
+      | Node n -> Ord.to_string n.key
+    in
+    let rec finger_str f acc =
+      match f with
+      | [] -> "[" ^ acc ^ "]"
+      | h :: t -> finger_str t (aux_node h ^ "; " ^ acc)
+    in
     let info =
-      Printf.sprintf "%s Elements: min: %s, max: %s\n" hdr
+      Printf.sprintf "%s Elements: min: %s, max: %s\nfinger: %s\n" hdr
         (key_str (min sl))
         (key_str (max sl))
+        (finger_str (Array.to_list sl.finger) "")
     in
     aux_str sl.head sl.max_level info
 

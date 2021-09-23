@@ -5,9 +5,11 @@ open Core_bench
 module M = Skiplist.Make (Int)
 module IMap = Map.Make (Int)
 
-let incr_int n =
-  let rec aux n acc = if n = 0 then acc else aux (n - 1) ((n, n + 1) :: acc) in
-  aux n []
+let default_args = Fixtures.samples_id
+
+let fixtures = Fixtures.load_data_exn ()
+
+let incr_int n = Fixtures.incr_int n fixtures
 
 let rec shuffle = function
   | [] -> []
@@ -16,21 +18,21 @@ let rec shuffle = function
       let before, after = List.partition (fun _ -> Random.bool ()) list in
       List.rev_append (shuffle before) (shuffle after)
 
-let rand_int n = [ (n, n + 1) ]
+let rand_int n = Fixtures.rand_int n fixtures
 
-let add_bench sl xs () = List.iter (fun (key, value) -> M.add sl ~key ~value) xs
+let add_bench sl xs () = List.iter (fun key -> M.add sl ~key ~value:key) xs
 
 let find_bench sl xs () =
   List.iter
-    (fun (k, _) ->
-      match M.find k sl with None -> failwith "unexpected" | Some _ -> ())
+    (fun k ->
+      match M.find sl k with None -> failwith "unexpected" | Some _ -> ())
     xs
 
-let hm_add_bench sl xs () = List.iter (fun (k, v) -> Hashtbl.add sl k v) xs
+let hm_add_bench sl xs () = List.iter (fun k -> Hashtbl.add sl k k) xs
 
 let hm_find_bench sl xs () =
   List.iter
-    (fun (k, _) ->
+    (fun k ->
       match Hashtbl.find_opt sl k with
       | None -> failwith "unexpected"
       | Some _ -> ())
@@ -38,18 +40,16 @@ let hm_find_bench sl xs () =
 
 let m_find_bench sl xs () =
   List.iter
-    (fun (k, _) ->
+    (fun k ->
       match IMap.find_opt k sl with
       | None -> failwith "unexpected"
       | Some _ -> ())
     xs
 
-let default_args = [ 1; 100; 1000; 10000 ]
-
 type benchmark = {
   name : string;
-  gen : int -> (int * int) list;
-  bench : (int * int) list -> unit -> unit;
+  gen : int -> int list;
+  bench : int list -> unit -> unit;
 }
 
 let benchmarks =
@@ -84,7 +84,9 @@ let benchmarks =
       gen = rand_int;
       bench =
         (fun elems ->
-          let sut = M.of_alist elems in
+          let sut =
+            elems |> List.to_seq |> Seq.map (fun k -> (k, k)) |> M.of_seq
+          in
           find_bench sut elems);
     };
     {
@@ -92,7 +94,9 @@ let benchmarks =
       gen = rand_int;
       bench =
         (fun elems ->
-          let sut = elems |> List.to_seq |> Hashtbl.of_seq in
+          let sut =
+            elems |> List.to_seq |> Seq.map (fun k -> (k, k)) |> Hashtbl.of_seq
+          in
           hm_find_bench sut elems);
     };
     {
@@ -100,7 +104,9 @@ let benchmarks =
       gen = rand_int;
       bench =
         (fun elems ->
-          let sut = elems |> List.to_seq |> IMap.of_seq in
+          let sut =
+            elems |> List.to_seq |> Seq.map (fun k -> (k, k)) |> IMap.of_seq
+          in
           m_find_bench sut elems);
     };
   ]

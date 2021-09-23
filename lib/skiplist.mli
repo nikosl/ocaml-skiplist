@@ -11,9 +11,6 @@
 type ('k, 'v) t
 (** The type of the [skiplist]*)
 
-type ('k, 'v) pair = 'k * 'v
-(** [skiplist] data.*)
-
 (** Input signature of the functor {!Make}. *)
 module type OrderedType = sig
   type t
@@ -46,35 +43,32 @@ module type S = sig
   val length : 'a t -> int
   (** Return the length of the skiplist. *)
 
-  val min : 'a t -> (key, 'a) pair option
+  val min : 'a t -> (key * 'a) option
   (** Return the min element of the skiplist. *)
 
-  val max : 'a t -> (key, 'a) pair option
+  val max : 'a t -> (key * 'a) option
   (** Return the max element of the skiplist. *)
 
-  val find : key -> 'a t -> (key, 'a) pair option
+  val find : 'a t -> key -> 'a option
 
-  val find_finger : key -> 'a t -> (key * 'a) option
+  val find_finger : 'a t -> key -> 'a option
 
   val find_nearest :
-    key ->
     'a t ->
-    [ `Gt of (key, 'a) pair
-    | `Lt of (key, 'a) pair
-    | `Eq of (key, 'a) pair
-    | `Empty ]
+    key ->
+    [ `Gt of key * 'a | `Lt of key * 'a | `Eq of key * 'a | `Empty ]
 
-  val find_range : start:key -> stop:key -> 'a t -> (key, 'a) pair list
+  val find_range : start:key -> stop:key -> 'a t -> (key * 'a) list
 
   val add : key:key -> value:'a -> 'a t -> unit
 
-  val remove : key -> 'a t -> unit
+  val remove : 'a t -> key -> unit
 
-  val mem : key -> 'a t -> bool
+  val mem : 'a t -> key -> bool
 
-  val iter : (key -> 'a -> unit) -> 'a t -> unit
+  val iter : f:(key -> 'a -> unit) -> 'a t -> unit
 
-  val filter_map_inplace : (key -> 'a -> 'a option) -> 'a t -> unit
+  val filter_map_inplace : f:(key -> 'a -> 'a option) -> 'a t -> unit
 
   val fold : 'a t -> init:'b -> f:(key:key -> value:'a -> 'b -> 'b) -> 'b
 
@@ -85,10 +79,10 @@ module type S = sig
   val copy : ?max_level:int -> 'a t -> 'a t
   (** Return a copy of the skiplist. *)
 
-  val of_alist : (key, 'a) pair list -> 'a t
+  val of_alist : (key * 'a) list -> 'a t
   (** Create a skiplist from a list of elements. *)
 
-  val to_alist : 'a t -> (key, 'a) pair list
+  val to_alist : 'a t -> (key * 'a) list
   (** Return a list of elements. *)
 
   val to_string : 'a t -> string

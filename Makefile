@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := all
-
+FIXTURES := ./fixtures/sample
 
 .PHONY: all
 all:
@@ -49,6 +49,7 @@ coverage : ## Generate coverage report
 
 .PHONY: bench
 bench: ## Run benchmarks
+	cp -ar $(FIXTURES) /tmp/
 	opam exec -- dune build --root . --profile=release
 	opam exec -- dune exec --root . bench/bench.exe -- -quota 5
 

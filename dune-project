@@ -36,13 +36,29 @@
    (and
     (>= 0.2)
     :dev))
+  (yojson
+   (and
+    (>= 1.7.0)
+    :dev))
+  (ppx_deriving_yojson
+   (and
+    (>= 3.6.1)
+    :dev))
   (qcstm
    (and
     (>= 0.1.1)
     :with-test))
+  (qcheck
+   (and
+    (>= 0.18)
+    :with-test))
   (qcheck-alcotest
    (and
     (>= 0.18)
+    :with-test))
+  (ppx_deriving
+   (and
+    (>= 5.2.1)
     :with-test))
   (bisect_ppx
    (and
