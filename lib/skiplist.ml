@@ -118,7 +118,7 @@ end
 module type S = sig
   type key
 
-  type !'a t
+  type 'a t
 
   val create : ?max_level:int -> unit -> 'a t
 
