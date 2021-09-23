@@ -136,7 +136,7 @@ module type S = sig
 
   val find_finger : 'a t -> key -> 'a option
 
-  val find_finger : key -> 'a t -> (key * 'a) option
+  val find_finger : 'a t -> key -> 'a option
 
   val find_nearest :
     'a t ->
@@ -194,8 +194,6 @@ module Make (Ord : OrderedType) : S with type key = Ord.t = struct
   let default_max_level = 16
 
   let flip = flip
-
-  (* let balanced sl = let l = float_of_int sl.max_level in let n = 0 *)
 
   let create ?(max_level = default_max_level) () : 'a t =
     let lvl = Array.init max_level (fun _ -> Nil) in
