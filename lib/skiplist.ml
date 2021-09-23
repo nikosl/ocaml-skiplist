@@ -143,9 +143,9 @@ module type S = sig
 
   val add : key:key -> value:'a -> 'a t -> unit
 
-  val to_string : 'a t -> string
+  val remove : 'a t -> key -> unit
 
-  val pp : Format.formatter -> 'a t -> unit [@@ocaml.toplevel_printer]
+  val mem : 'a t -> key -> bool
 
   val iter : f:(key -> 'a -> unit) -> 'a t -> unit
 

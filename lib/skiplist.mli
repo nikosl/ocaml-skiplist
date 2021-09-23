@@ -62,9 +62,9 @@ module type S = sig
 
   val add : key:key -> value:'a -> 'a t -> unit
 
-  val mem : key -> 'a t -> bool
+  val remove : 'a t -> key -> unit
 
-  val iter : (key -> 'a -> unit) -> 'a t -> unit
+  val mem : 'a t -> key -> bool
 
   val iter : f:(key -> 'a -> unit) -> 'a t -> unit
 
