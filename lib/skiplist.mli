@@ -53,7 +53,7 @@ module type S = sig
 
   val find_finger : 'a t -> key -> 'a option
 
-  val find_finger : key -> 'a t -> (key * 'a) option
+  val find_finger : 'a t -> key -> 'a option
 
   val find_nearest :
     'a t ->
@@ -66,7 +66,7 @@ module type S = sig
 
   val mem : key -> 'a t -> bool
 
-  val iter : (key -> 'a -> unit) -> 'a t -> unit
+  val iter : f:(key -> 'a -> unit) -> 'a t -> unit
 
   val iter : f:(key -> 'a -> unit) -> 'a t -> unit
 
