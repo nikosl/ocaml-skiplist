@@ -24,6 +24,7 @@ module SLConf = struct
     | Find_all of int
     | Replace of int * int
     | Mem of int
+    | Split of int
     | Length
     | Min
     | Max
@@ -50,7 +51,10 @@ module SLConf = struct
         Gen.map (fun k -> Find_all k) k_int_gen;
         Gen.map2 (fun k v -> Replace (k, v)) k_int_gen int_gen;
         Gen.map (fun k -> Mem k) k_int_gen;
+        Gen.map (fun k -> Split k) k_int_gen;
         Gen.return Length;
+        Gen.return Min;
+        Gen.return Max;
       ]
 
   let shrink c =
@@ -72,6 +76,7 @@ module SLConf = struct
         Iter.map (fun k' -> Replace (k', v)) (Shrink.int k)
         <+> Iter.map (fun v' -> Replace (k, v')) (Shrink.int v)
     | Mem k -> Iter.map (fun k' -> Mem k') (Shrink.int k)
+    | Split k -> Iter.map (fun k' -> Split k') (Shrink.int k)
     | Length | Min | Max -> Iter.empty
 
   let arb_cmd s = QCheck.make ~print:show_cmd ~shrink (gen_cmd s)
@@ -103,14 +108,18 @@ module SLConf = struct
   let state_find_range k1 k2 s =
     s |> state_sort |> List.filter (fun (k, _) -> k >= k1 && k < k2)
 
+  let state_split k s =
+    s |> state_sort |> List.partition (fun (k', _) -> k' <= k) |> fst
+
   let next_state c s =
     match c with
     | Clear -> []
     | Add (k, v) -> state_add k v s
     | Remove k -> List.remove_assoc k s
     | Replace (k, v) -> state_add k v s
+    | Split k -> state_split k s
     | Find _ | Find_finger _ | Find_nearest _ | Find_range _ | Find_all _
-    | Mem _ | Length | Min | Max ->
+    | Mem _  | Length | Min | Max ->
         s
 
   let init_sut () = Sut.create ()
@@ -149,6 +158,7 @@ module SLConf = struct
         Sut.add sl ~key:k ~value:v;
         true
     | Mem k -> List.mem_assoc k s = Sut.mem sl k
+    | Split _k -> (*state_split k s = (Sut.split sl k) *) false
     | Length -> List.length s = Sut.length sl
     | Min ->
         let asc = state_sort s in
